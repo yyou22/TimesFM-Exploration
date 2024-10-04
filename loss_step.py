@@ -54,10 +54,16 @@ def calculate_metrics_per_step(df, true_col, pred_col):
     
     # Calculate metrics at each time step
     mse = (y_true - y_pred) ** 2  # MSE at each time step
+    rmse = np.sqrt(mse)  # RMSE at each time step
     mae = np.abs(y_true - y_pred)  # MAE at each time step
     mape = np.abs((y_true - y_pred) / (y_true + 0.5)) * 100  # MAPE
     
-    return mse, mae, mape
+    # Calculate relative errors
+    mean_true = np.mean(y_true) if np.mean(y_true) != 0 else 1  # Avoid division by zero
+    rmae = mae / mean_true  # RMAE
+    rmape = mape / (mean_true + 0.5)  # RMAPE
+    
+    return mse, rmse, mae, rmae, mape, rmape
 
 # Function to plot comparison for TFT and TimesFM with smoother lines and better readability
 def plot_metrics_comparison(metrics_TimesFM, metrics_TFT, time_steps, metric_name):
@@ -102,34 +108,49 @@ def main(intersection_numbers):
         
         # Initialize variables to accumulate metrics across all movements
         total_mse_TimesFM = np.zeros(96)
+        total_rmse_TimesFM = np.zeros(96)
         total_mae_TimesFM = np.zeros(96)
+        total_rmae_TimesFM = np.zeros(96)
         total_mape_TimesFM = np.zeros(96)
+        total_rmape_TimesFM = np.zeros(96)
         
         total_mse_TFT = np.zeros(96)
+        total_rmse_TFT = np.zeros(96)
         total_mae_TFT = np.zeros(96)
+        total_rmae_TFT = np.zeros(96)
         total_mape_TFT = np.zeros(96)
+        total_rmape_TFT = np.zeros(96)
         
         for i in range(12):  # Iterate over all movements
             data_new = dt_reshape(TimesFM_p, TFT_p, observed, i)
             time_steps = data_new['time']
             
             # Calculate metrics per time step for both TimesFM and TFT
-            mse_TimesFM, mae_TimesFM, mape_TimesFM = calculate_metrics_per_step(data_new, 'observed', 'TimesFM')
-            mse_TFT, mae_TFT, mape_TFT = calculate_metrics_per_step(data_new, 'observed', 'TFT')
+            mse_TimesFM, rmse_TimesFM, mae_TimesFM, rmae_TimesFM, mape_TimesFM, rmape_TimesFM = calculate_metrics_per_step(data_new, 'observed', 'TimesFM')
+            mse_TFT, rmse_TFT, mae_TFT, rmae_TFT, mape_TFT, rmape_TFT = calculate_metrics_per_step(data_new, 'observed', 'TFT')
             
             # Accumulate metrics across all movements
             total_mse_TimesFM += mse_TimesFM
+            total_rmse_TimesFM += rmse_TimesFM
             total_mae_TimesFM += mae_TimesFM
+            total_rmae_TimesFM += rmae_TimesFM
             total_mape_TimesFM += mape_TimesFM
+            total_rmape_TimesFM += rmape_TimesFM
             
             total_mse_TFT += mse_TFT
+            total_rmse_TFT += rmse_TFT
             total_mae_TFT += mae_TFT
+            total_rmae_TFT += rmae_TFT
             total_mape_TFT += mape_TFT
+            total_rmape_TFT += rmape_TFT
         
         # Plotting the metrics comparison for each loss type (summed across all movements)
         plot_metrics_comparison(total_mse_TimesFM, total_mse_TFT, time_steps, 'MSE')
+        plot_metrics_comparison(total_rmse_TimesFM, total_rmse_TFT, time_steps, 'RMSE')
         plot_metrics_comparison(total_mae_TimesFM, total_mae_TFT, time_steps, 'MAE')
+        plot_metrics_comparison(total_rmae_TimesFM, total_rmae_TFT, time_steps, 'RMAE')
         plot_metrics_comparison(total_mape_TimesFM, total_mape_TFT, time_steps, 'MAPE')
+        plot_metrics_comparison(total_rmape_TimesFM, total_rmape_TFT, time_steps, 'RMAPE')
 
 # Example of calling the main function with a list of intersection numbers
 if __name__ == "__main__":
