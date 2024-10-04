@@ -24,7 +24,7 @@ def read_TFT(int_num):
 
 # Function to read TimesFM data
 def read_TimesFM(int_num):
-    data_prediction_TF = pd.read_csv('TimesFM_0_96_96.csv')
+    data_prediction_TF = pd.read_csv(f'TimesFM_{int_num}_96_96.csv')
     data_prediction_TF = data_prediction_TF.pivot_table(index='Time_in', columns='Movement', values=['timesfm', 'timesfm-q-0.1', 'timesfm-q-0.9'], aggfunc='mean')
     data_prediction_TF = data_prediction_TF.swaplevel(axis=1).sort_index(axis=1, level='Movement')
     data_prediction_TF['time'] = pd.to_datetime(data_prediction_TF.index)
@@ -59,19 +59,36 @@ def calculate_metrics_per_step(df, true_col, pred_col):
     
     return mse, mae, mape
 
-# Function to plot comparison for TFT and TimesFM
+# Function to plot comparison for TFT and TimesFM with smoother lines and better readability
 def plot_metrics_comparison(metrics_TimesFM, metrics_TFT, time_steps, metric_name):
-    plt.figure(figsize=(10, 6))
-    plt.plot(time_steps, metrics_TimesFM, label='TimesFM', marker='o')
-    plt.plot(time_steps, metrics_TFT, label='TFT', marker='x')
-    plt.title(f'{metric_name} Comparison by Step (Summed Across Movements)')
-    plt.xlabel('Time Steps')
-    plt.ylabel(metric_name)
-    plt.legend()
-    plt.grid(True)
+    plt.figure(figsize=(12, 6))
+    
+    # Apply rolling mean to smooth the lines
+    metrics_TimesFM_smooth = pd.Series(metrics_TimesFM).rolling(window=5, min_periods=1).mean()
+    metrics_TFT_smooth = pd.Series(metrics_TFT).rolling(window=5, min_periods=1).mean()
+    
+    # Plot with thicker lines for better visibility
+    plt.plot(time_steps, metrics_TimesFM_smooth, label='TimesFM', color='blue', linewidth=2, linestyle='-')
+    plt.plot(time_steps, metrics_TFT_smooth, label='TFT', color='orange', linewidth=2, linestyle='--')
+    
+    # Improve the title, labels, and grid
+    plt.title(f'{metric_name} Comparison by Step (Summed Across Movements)', fontsize=16)
+    plt.xlabel('Time Steps', fontsize=14)
+    plt.ylabel(metric_name, fontsize=14)
+    plt.grid(True, which='both', linestyle='--', linewidth=0.7)
+    
+    # Rotate x-axis labels for better readability
+    plt.xticks(rotation=45, fontsize=12)
+    plt.yticks(fontsize=12)
+    
+    # Add a legend
+    plt.legend(fontsize=12)
+    
+    # Show the plot with tight layout to avoid label cutoff
+    plt.tight_layout()
     plt.show()
 
-# Main program that compares metrics per step
+# Main program that compares metrics per step across all movements
 def main(intersection_numbers):
     """
     Main function to process multiple intersections and compare metrics per time step across all movements.
