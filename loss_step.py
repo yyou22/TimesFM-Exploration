@@ -10,7 +10,8 @@ MOVEMENTS = ['EBL', 'EBR', 'EBT', 'NBL', 'NBR', 'NBT', 'SBL', 'SBR', 'SBT', 'WBL
 
 # Function to read TFT data
 def read_TFT(int_num):
-    dir_tft = "../result/KW_trained"
+    #dir_tft = "../result/KW_trained"
+    dir_tft = "./My TFT"
     data_time_idx = torch.load(os.path.join(dir_tft, f'TFTtensor_decoder_time_idx_{int_num}.pt'), map_location=torch.device('cpu'))
     data_target = torch.load(os.path.join(dir_tft, f'TFTtensor_decoder_target_{int_num}.pt'), map_location=torch.device('cpu'))
     data_prediction = torch.load(os.path.join(dir_tft, f'TFTtensor_prediction_{int_num}.pt'), map_location=torch.device('cpu'))
