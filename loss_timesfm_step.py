@@ -39,10 +39,10 @@ def dt_reshape(TimesFM_p, observed, movement_index):
 
 # Function to calculate metrics
 def calculate_metrics(y_true, y_pred):
-    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    mse = mean_squared_error(y_true, y_pred)
     mae = mean_absolute_error(y_true, y_pred)
     mape = np.mean(np.abs((y_true - y_pred) / (y_true + 0.5))) * 100
-    return rmse, mae, mape
+    return mse, mae, mape
 
 # Function to plot comparison for three TimesFM versions with smoother lines
 def plot_metrics_comparison(metrics_list, labels, time_steps, metric_name):
@@ -73,31 +73,35 @@ def main(int_num, csv_files):
     total_metrics = {label: {'mse': np.zeros(96), 'rmse': np.zeros(96), 'mae': np.zeros(96), 'mape': np.zeros(96)}
                      for label in labels}
 
-    all_rmse, all_mae, all_mape = {}, {}, {}
+    weighted_metrics_sum = {label: np.zeros(3) for label in labels}  # Store weighted sums of MSE, MAE, MAPE
+    total_volume_sum = 0
 
     for label, data in zip(labels, timesfm_data):
-        all_y_true, all_y_pred = [], []
-
         for i in range(12):  # Iterate over all movements
             data_new = dt_reshape(data, observed, i)
-            all_y_true.extend(data_new['observed'].values)
-            all_y_pred.extend(data_new['TimesFM'].values)
+            y_true = data_new['observed'].values
+            y_pred = data_new['TimesFM'].values
+
+            # Calculate metrics using Vincent's method
+            mse, mae, mape = calculate_metrics(y_true, y_pred)
+            volume = np.sum(y_true)
+            weighted_metrics_sum[label] += np.array([mse, mae, mape]) * volume
+            total_volume_sum += volume
 
             # Calculate metrics per time step for plotting
-            total_metrics[label]['mse'] += (data_new['observed'] - data_new['TimesFM']) ** 2
-            total_metrics[label]['rmse'] += np.sqrt((data_new['observed'] - data_new['TimesFM']) ** 2)
-            total_metrics[label]['mae'] += np.abs(data_new['observed'] - data_new['TimesFM'])
-            total_metrics[label]['mape'] += np.abs((data_new['observed'] - data_new['TimesFM']) / (data_new['observed'] + 0.5)) * 100
+            total_metrics[label]['mse'] += (y_true - y_pred) ** 2
+            total_metrics[label]['rmse'] += np.sqrt((y_true - y_pred) ** 2)
+            total_metrics[label]['mae'] += np.abs(y_true - y_pred)
+            total_metrics[label]['mape'] += np.abs((y_true - y_pred) / (y_true + 0.5)) * 100
 
-        # Calculate overall metrics using all true and predicted values
-        all_y_true = np.array(all_y_true)
-        all_y_pred = np.array(all_y_pred)
-        all_rmse[label], all_mae[label], all_mape[label] = calculate_metrics(all_y_true, all_y_pred)
-
-    # Print overall losses using the most common way (across all movements and time steps)
-    print("Overall Losses Across All Movements (Combined):")
+    # Print overall weighted metrics using Vincent's method
+    print("Overall Weighted Losses Across All Movements (Combined):")
     for label in labels:
-        print(f"{label} - RMSE: {all_rmse[label]:.4f}, MAE: {all_mae[label]:.4f}, MAPE: {all_mape[label]:.4f}")
+        weighted_mse = weighted_metrics_sum[label][0] / total_volume_sum
+        weighted_mae = weighted_metrics_sum[label][1] / total_volume_sum
+        weighted_mape = weighted_metrics_sum[label][2] / total_volume_sum
+
+        print(f"{label} - MSE: {weighted_mse:.4f}, MAE: {weighted_mae:.4f}, MAPE: {weighted_mape:.4f}")
     
     # Plotting the metrics comparison for each loss type (summed across all movements)
     time_steps = timesfm_data[0]['time']  # Use time steps from the first dataset for consistency

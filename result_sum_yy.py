@@ -26,8 +26,6 @@ def read_TFT(int_num):
         Target (np.ndarray): Observed values.
         mean_Pred (np.ndarray): Predicted values.
     """
-    #dir_tft = os.path.join("D:\\", "Desktop", "paper_4", "result", "MI_trained")
-
     dir_tft = "../result/KW_trained"
     
     data_time_idx = torch.load(os.path.join(dir_tft, f'TFTtensor_decoder_time_idx_{int_num}.pt'), map_location=torch.device('cpu'))
@@ -38,7 +36,7 @@ def read_TFT(int_num):
     time_idx = data_time_idx[0, :].cpu().numpy()  # Move to CPU for processing
     Target = np.transpose(data_target[:, :].cpu().numpy())
     mean_Pred = data_prediction[:, :, [1, 3, 5]].cpu().numpy()
-    mean_Pred = mean_Pred.transpose(1, 0, 2).reshape(96, 3 * 12)  # 0.1, 0.5, 0.9 分位
+    mean_Pred = mean_Pred.transpose(1, 0, 2).reshape(96, 3 * 12)  # 0.1, 0.5, 0.9 quantiles
     
     return Target, mean_Pred
 
@@ -53,12 +51,10 @@ def read_TimesFM(int_num):
     Returns:
         pd.DataFrame: Processed TimesFM data.
     """
-    #data_prediction_TF = pd.read_csv(f'D:\\Desktop\\paper_4\\Result\\TimesFM_{int_num}.csv')
-
-    data_prediction_TF = pd.read_csv('TimesFM_0_96_96.csv')
+    data_prediction_TF = pd.read_csv('TimesFM_0_512_96.csv')
     data_prediction_TF = data_prediction_TF.pivot_table(index='Time_in', columns='Movement', values=['timesfm', 'timesfm-q-0.1', 'timesfm-q-0.9'], aggfunc='mean')
     data_prediction_TF = data_prediction_TF.swaplevel(axis=1).sort_index(axis=1, level='Movement')
-    data_prediction_TF['time'] = pd.to_datetime(data_prediction_TF.index)  # 0.5, 0.1, 0.9 分位
+    data_prediction_TF['time'] = pd.to_datetime(data_prediction_TF.index)  # 0.5, 0.1, 0.9 quantiles
     
     return data_prediction_TF
 
@@ -102,13 +98,16 @@ def calculate_metrics(df, true_col, pred_col):
         pred_col (str): Column name for predicted values.
     
     Returns:
-        tuple: RMSE, RMSPE, MAE, MAPE, R²
+        tuple: MSE, RMSE, RMSPE, MAE, MAPE, R²
     """
     y_true = df[true_col].values
     y_pred = df[pred_col].values
     
+    # Calculate MSE
+    mse = mean_squared_error(y_true, y_pred)
+    
     # Calculate RMSE
-    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    rmse = np.sqrt(mse)
     
     # Calculate RMSPE
     rmspe = np.sqrt(np.mean(np.square((y_true - y_pred) / (y_true + 0.5)))) * 100
@@ -122,7 +121,7 @@ def calculate_metrics(df, true_col, pred_col):
     # Calculate R²
     r2 = r2_score(y_true, y_pred)
     
-    return rmse, rmspe, mae, mape, r2
+    return mse, rmse, rmspe, mae, mape, r2
 
 # Main program that loops through multiple intersections
 def main(intersection_numbers):
@@ -138,7 +137,7 @@ def main(intersection_numbers):
     """
     results = []
     total_volume_sum = 0
-    weighted_metrics_sum = np.zeros(10)  # To store weighted sum of all metrics (TimesFM + TFT)
+    weighted_metrics_sum = np.zeros(12)  # To store weighted sum of all metrics (TimesFM + TFT)
     
     for int_num in intersection_numbers:
         observed, TFT_p = read_TFT(int_num)
@@ -146,8 +145,8 @@ def main(intersection_numbers):
         
         # Calculate and accumulate metrics for all movements in this intersection
         volume_sum = 0
-        metrics_sum = np.zeros(5)
-        metrics_TFT_sum = np.zeros(5)
+        metrics_sum = np.zeros(6)
+        metrics_TFT_sum = np.zeros(6)
         
         for i in range(12):  # Iterate over all movements
             data_new = dt_reshape(TimesFM_p, TFT_p, observed, i)
@@ -170,26 +169,25 @@ def main(intersection_numbers):
         
         # Update the total volume sum and weighted sum of metrics
         total_volume_sum += volume_sum
-        weighted_metrics_sum[:5] += average_metrics * volume_sum
-        weighted_metrics_sum[5:] += average_metrics_TFT * volume_sum
+        weighted_metrics_sum[:6] += average_metrics * volume_sum
+        weighted_metrics_sum[6:] += average_metrics_TFT * volume_sum
     
     # Calculate weighted average metrics across all intersections
     weighted_average_metrics = weighted_metrics_sum / total_volume_sum
     
     # Convert results to a DataFrame
-    columns = ['Intersection', 'RMSE_TimesFM', 'RMSPE_TimesFM', 'MAE_TimesFM', 'MAPE_TimesFM', 'R2_TimesFM',
-               'RMSE_TFT', 'RMSPE_TFT', 'MAE_TFT', 'MAPE_TFT', 'R2_TFT', 'Volume_Sum']
+    columns = ['Intersection', 'MSE_TimesFM', 'RMSE_TimesFM', 'RMSPE_TimesFM', 'MAE_TimesFM', 'MAPE_TimesFM', 'R2_TimesFM',
+               'MSE_TFT', 'RMSE_TFT', 'RMSPE_TFT', 'MAE_TFT', 'MAPE_TFT', 'R2_TFT', 'Volume_Sum']
     df_results = pd.DataFrame(results, columns=columns)
     
     # Add a final row for weighted metrics
-    weighted_metrics_row = ['Weighted Average', *weighted_average_metrics, total_volume_sum]#解包操作
+    weighted_metrics_row = ['Weighted Average', *weighted_average_metrics, total_volume_sum]
     df_results.loc[len(df_results)] = weighted_metrics_row
     
     return df_results
 
 # Example of calling the main function with a list of intersection numbers
 if __name__ == "__main__":
-    #intersection_list = list(filter(lambda x: x != 72, range(61,76)))  # Example intersection numbers
     intersection_list = [0]
     result_df = main(intersection_list)
     print(result_df)
